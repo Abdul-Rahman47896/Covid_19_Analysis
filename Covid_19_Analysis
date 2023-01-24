@@ -1,0 +1,139 @@
+--To Know the overview of table structure
+
+SELECT *
+FROM Covid_Updated.Covid_19_project
+LIMIT 100
+
+--Select data that we are going to use
+
+SELECT location, SUM(total_cases)/1000000 as Total_cases_in_Millions, SUM(total_deaths)/1000000 as Total_deaths_in_millions, SUM(population)/1000000 as Total_population_in_Millions
+from  `directed-reef-360309.Covid_Updated.Covid_19_project`
+WHERE continent is NOT NULL
+group by location
+ORDER BY location
+
+--Looking at TOTAL CASES AND TOTAL DEATHS Millions
+--To know about the death percentage in specific country
+
+SELECT location, date, total_cases, total_deaths, (total_deaths / total_cases)*100 AS DeathPercentage
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+WHERE Location = "India"
+AND Continent IS NOT NULL
+ORDER BY 1,2
+
+-- Looking at TOTAL CASES vs POPULATION
+-- Shows what percentage of population got COVID
+
+SELECT location, date, population, total_cases,  (total_cases / population)*100 AS PercentPopulationInfected
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+--WHERE Location = "India"
+ORDER BY 1,2
+
+-- Looking at Countries With Highest Infection Rate Compared to Population
+
+SELECT location, population, MAX(total_cases) AS HighestInfectionCount,  MAX((total_cases / population))*100 AS PercentPopulationInfected
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+GROUP BY population, location
+ORDER BY PercentPopulationInfected DESC
+
+-- Showing countries with the highest death count per population
+
+SELECT location, MAX(cast(total_deaths as int)) AS TotalDeathCount
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+WHERE Continent IS NOT NULL
+GROUP BY population, location
+ORDER BY TotalDeathCount DESC
+
+-- LET'S BREAK THING DOWN BY CONTINENT
+
+-- Showing continents with the highest Death Count per population
+
+SELECT continent, MAX(cast(total_deaths as int)) AS TotalDeathCount
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+WHERE Continent IS NOT NULL
+GROUP BY continent
+ORDER BY TotalDeathCount DESC
+
+-- GLOBAL NUMBERS
+
+SELECT SUM (new_cases) as TotalCases, SUM (cast (New_deaths as int)) AS TotalDeaths, 
+SUM (cast(new_deaths as int)) / SUM (new_cases) * 100 AS DeathPercentage
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project`
+WHERE Continent IS NOT NULL
+--GROUP BY date
+ORDER BY TotalDeaths DESC
+
+-- Looking at TotalPopulation VS Vaccination
+--From two diff tables
+
+SELECT DEA.continent, DEA.location, DEA.date, DEA.population, VAC.new_vaccinations
+, SUM(Cast(VAC.new_vaccinations AS bigint)) OVER (Partition By DEA.location ORDER BY DEA.location, 
+DEA.date) AS RollingPeopleVaccinated
+--, (RollingPeopleVaccinated / Population) * 100
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project` DEA 
+JOIN `directed-reef-360309.Covid_Updated.Covid_19_VAC` VAC
+ON DEA.location = VAC.location
+AND DEA.date = VAC.date
+WHERE DEA.continent IS NOT NULL
+ORDER BY 2,3 
+WITH PopvsVac (Continent, Location, Date, Population, NewVaccinations, RollingPeopleVaccinated)
+AS
+(
+SELECT DEA.continent, DEA.location, DEA.date, DEA.population, VAC.new_vaccinations
+, SUM(Cast(VAC.new_vaccinations AS bigint)) OVER (Partition By DEA.location ORDER BY DEA.location, 
+DEA.date) AS RollingPeopleVaccinated
+--, (RollingPeopleVaccinated / Population) * 100
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project` DEA 
+JOIN `directed-reef-360309.Covid_Updated.Covid_19_VAC` VAC
+ON DEA.location = VAC.location
+AND DEA.date = VAC.date
+WHERE DEA.continent IS NOT NULL
+--ORDER BY 2,3 
+)
+SELECT * , (RollingPeopleVaccinated /Population) * 100
+FROM PopvsVac
+
+-- TEMP TABLE
+
+--DROP TABLE PercentPopulationVaccinated IF EXISTS
+CREATE TABLE PercentPopulationVaccinated
+(
+Continent nvarchar (255),
+Location nvarchar (255),
+Date datetime, 
+Population numeric,
+NewVaccinations numeric, 
+Rollingpeoplevaccinated numeric)
+
+INSERT INTO PercentPopulationVaccinated
+SELECT DEA.continent, DEA.location, DEA.date, DEA.population, VAC.new_vaccinations
+, SUM(Cast(VAC.new_vaccinations AS bigint)) OVER (Partition By DEA.location ORDER BY DEA.location, 
+DEA.date) AS RollingPeopleVaccinated
+--, (RollingPeopleVaccinated / Population) * 100
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project` DEA 
+JOIN `directed-reef-360309.Covid_Updated.Covid_19_VAC` VAC
+ON DEA.location = VAC.location
+AND DEA.date = VAC.date
+WHERE DEA.continent IS NOT NULL
+--ORDER BY 2,3 
+
+SELECT * , (RollingPeopleVaccinated /Population) * 100
+FROM PercentPopulationVaccinated
+
+-- Creating View to store data for later visualizations
+
+Create View PercentPopulationVaccinated AS
+SELECT DEA.continent, DEA.location, DEA.date, DEA.population, VAC.new_vaccinations
+, SUM(Cast(VAC.new_vaccinations AS bigint)) OVER (Partition By DEA.location ORDER BY DEA.location, 
+DEA.date) AS RollingPeopleVaccinated
+--, (RollingPeopleVaccinated / Population) * 100
+FROM `directed-reef-360309.Covid_Updated.Covid_19_project` DEA 
+JOIN `directed-reef-360309.Covid_Updated.Covid_19_VAC` VAC
+ON DEA.location = VAC.location
+AND DEA.date = VAC.date
+WHERE DEA.continent IS NOT NULL
+--ORDER BY 2,3 
+
+
+SELECT * 
+FROM PercentPopulationVaccinated
